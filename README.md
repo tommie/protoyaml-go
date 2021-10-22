@@ -9,6 +9,11 @@ is for JSON.
 
 This is in early development.
 
+## Special Considerations
+
+* YAML names correspond to Protobuf names, not JSON-names.
+* Enums can be provied as names or numbers.
+
 ## Running Tests
 
 ```shell
