@@ -6,12 +6,15 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"gopkg.in/yaml.v3"
 )
 
 func (d *Decoder) decodeKnownType(out protoreflect.Message, v *yaml.Node) (bool, error) {
 	switch out.Type() {
+	case anyType:
+		return true, d.decodeAny(out, v)
 	case durationType:
 		return true, d.decodeDuration(out, v)
 	default:
@@ -22,8 +25,52 @@ func (d *Decoder) decodeKnownType(out protoreflect.Message, v *yaml.Node) (bool,
 }
 
 var (
+	anyType      = (&anypb.Any{}).ProtoReflect().Type()
 	durationType = (&durationpb.Duration{}).ProtoReflect().Type()
 )
+
+func (d *Decoder) decodeAny(out protoreflect.Message, v *yaml.Node) error {
+	any := out.Interface().(*anypb.Any)
+
+	if v.Kind != yaml.MappingNode {
+		return fmt.Errorf("protoyaml: attempting to unmarshal a %v into an anypb.Any", v.Kind)
+	}
+
+	var mt protoreflect.MessageType
+	var typeIndex int
+	var key string
+	for i, n := range v.Content {
+		if key == "" {
+			key = n.Value
+			continue
+		}
+		switch key {
+		case "@type":
+			var err error
+			mt, err = d.r.FindMessageByURL(n.Value)
+			if err != nil {
+				return err
+			}
+			any.TypeUrl = n.Value
+			typeIndex = i - 1
+		}
+		key = ""
+	}
+
+	if mt == nil {
+		return fmt.Errorf("protoyaml: no @type key in Any mapping")
+	}
+
+	n := *v
+	n.Content = append(append([]*yaml.Node{}, v.Content[:typeIndex]...), v.Content[typeIndex+2:]...)
+
+	m := mt.New()
+	if err := d.decodeMessage(m, &n); err != nil {
+		return err
+	}
+
+	return any.MarshalFrom(m.Interface())
+}
 
 func (d *Decoder) decodeDuration(out protoreflect.Message, v *yaml.Node) error {
 	dur := out.Interface().(*durationpb.Duration)

@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/reflect/protoregistry"
 	"gopkg.in/yaml.v3"
 )
 
@@ -20,12 +21,22 @@ func Unmarshal(bs []byte, m protoreflect.ProtoMessage) error {
 // goroutine-compatible.
 type Decoder struct {
 	yd *yaml.Decoder
+	r  protoregistry.MessageTypeResolver
 }
 
 // NewDecoder creats a new decoder reading from the given stream of
 // YAML text.
 func NewDecoder(r io.Reader) *Decoder {
-	return &Decoder{yaml.NewDecoder(r)}
+	return &Decoder{
+		yd: yaml.NewDecoder(r),
+		r:  protoregistry.GlobalTypes,
+	}
+}
+
+// MessageTypeResolver sets a custom resolver for anypb.Any types. The
+// default in NewDecoder is protoregistry.GlobalTypes.
+func (d *Decoder) MessageTypeResolver(r protoregistry.MessageTypeResolver) {
+	d.r = r
 }
 
 // Decode decodes the next document as a message. The argument can
