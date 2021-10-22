@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package protoyaml.test;
+
+option go_package = "github.com/tommie/protoyaml-go/internal/testproto";
+
+message Message {
+  bool abool = 1;
+  int32 anint32 = 2;
+  sint32 ansint32 = 3;
+  sfixed32 ansfixed32 = 4;
+  int64 anint64 = 5;
+  sint64 ansint64 = 6;
+  sfixed64 ansfixed64 = 7;
+  uint32 auint32 = 8;
+  fixed32 afixed32 = 9;
+  uint64 auint64 = 10;
+  fixed64 afixed64 = 11;
+  float afloat = 12;
+  double adouble = 13;
+  bytes abytes = 14;
+  string astring = 15;
+  Enum anenum = 16;
+
+  repeated bool arepeated_bool = 21;
+  repeated int32 arepeated_int32 = 22;
+  repeated sint32 arepeated_sint32 = 23;
+  repeated sfixed32 arepeated_sfixed32 = 24;
+  repeated int64 arepeated_int64 = 25;
+  repeated sint64 arepeated_sint64 = 26;
+  repeated sfixed64 arepeated_sfixed64 = 27;
+  repeated uint32 arepeated_uint32 = 28;
+  repeated fixed32 arepeated_fixed32 = 29;
+  repeated uint64 arepeated_uint64 = 30;
+  repeated fixed64 arepeated_fixed64 = 31;
+  repeated float arepeated_float = 32;
+  repeated double arepeated_double = 33;
+  repeated bytes arepeated_bytes = 34;
+  repeated string arepeated_string = 35;
+  repeated Enum arepeated_nenum = 36;
+
+  map<string, int32> astring_int32_map = 41;
+  map<string, Message> astring_message_map = 42;
+
+  Message amessage = 51;
+  repeated Message arepeated_message = 52;
+}
+
+enum Enum {
+  ZERO = 0;
+  ONE = 1;
+}
