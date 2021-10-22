@@ -8,6 +8,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v3"
 )
 
@@ -17,6 +18,8 @@ func (d *Decoder) decodeKnownType(out protoreflect.Message, v *yaml.Node) (bool,
 		return true, d.decodeAny(out, v)
 	case durationType:
 		return true, d.decodeDuration(out, v)
+	case timestampType:
+		return true, d.decodeTimestamp(out, v)
 	default:
 		return false, nil
 	}
@@ -25,8 +28,9 @@ func (d *Decoder) decodeKnownType(out protoreflect.Message, v *yaml.Node) (bool,
 }
 
 var (
-	anyType      = (&anypb.Any{}).ProtoReflect().Type()
-	durationType = (&durationpb.Duration{}).ProtoReflect().Type()
+	anyType       = (&anypb.Any{}).ProtoReflect().Type()
+	durationType  = (&durationpb.Duration{}).ProtoReflect().Type()
+	timestampType = (&timestamppb.Timestamp{}).ProtoReflect().Type()
 )
 
 func (d *Decoder) decodeAny(out protoreflect.Message, v *yaml.Node) error {
@@ -77,6 +81,16 @@ func (d *Decoder) decodeDuration(out protoreflect.Message, v *yaml.Node) error {
 
 	if v.Kind != yaml.ScalarNode {
 		return fmt.Errorf("protoyaml: attempting to unmarshal a %v into a durationpb.Duration", v.Kind)
+	}
+
+	return protojson.Unmarshal([]byte(strconv.Quote(v.Value)), dur)
+}
+
+func (d *Decoder) decodeTimestamp(out protoreflect.Message, v *yaml.Node) error {
+	dur := out.Interface().(*timestamppb.Timestamp)
+
+	if v.Kind != yaml.ScalarNode {
+		return fmt.Errorf("protoyaml: attempting to unmarshal a %v into a timestamppb.Timestamp", v.Kind)
 	}
 
 	return protojson.Unmarshal([]byte(strconv.Quote(v.Value)), dur)

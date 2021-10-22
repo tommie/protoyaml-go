@@ -4,6 +4,7 @@ package protoyaml.test;
 
 import "google/protobuf/any.proto";
 import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/tommie/protoyaml-go/internal/testproto";
 
@@ -57,4 +58,5 @@ enum Enum {
 message Known {
   google.protobuf.Any anany = 1;
   google.protobuf.Duration aduration = 2;
+  google.protobuf.Timestamp atimestamp = 3;
 }
