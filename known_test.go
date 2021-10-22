@@ -8,6 +8,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/tommie/protoyaml-go/internal/testproto"
@@ -45,6 +46,25 @@ func TestDecoderDecodeDuration(t *testing.T) {
 	want := durationpb.New(42 * time.Second)
 	if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 		t.Errorf("decodeDuration: +got, -want:\n%s", diff)
+	}
+}
+
+func TestDecoderDecodeFieldMask(t *testing.T) {
+	d, n, err := parseYAML(`["amessage.anint32", "astring"]`)
+	if err != nil {
+		t.Fatalf("parseYAML failed: %v", err)
+	}
+	var got fieldmaskpb.FieldMask
+	if err := d.decodeFieldMask(got.ProtoReflect(), n); err != nil {
+		t.Fatalf("decodeFieldMask failed: %v", err)
+	}
+
+	want, err := fieldmaskpb.New(&testproto.Message{}, "amessage.anint32", "astring")
+	if err != nil {
+		t.Fatalf("fieldmaskpb.New failed: %v", err)
+	}
+	if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+		t.Errorf("decodeFieldMask: +got, -want:\n%s", diff)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v3"
 )
@@ -18,6 +19,8 @@ func (d *Decoder) decodeKnownType(out protoreflect.Message, v *yaml.Node) (bool,
 		return true, d.decodeAny(out, v)
 	case durationType:
 		return true, d.decodeDuration(out, v)
+	case fieldMaskType:
+		return true, d.decodeFieldMask(out, v)
 	case timestampType:
 		return true, d.decodeTimestamp(out, v)
 	default:
@@ -30,6 +33,7 @@ func (d *Decoder) decodeKnownType(out protoreflect.Message, v *yaml.Node) (bool,
 var (
 	anyType       = (&anypb.Any{}).ProtoReflect().Type()
 	durationType  = (&durationpb.Duration{}).ProtoReflect().Type()
+	fieldMaskType = (&fieldmaskpb.FieldMask{}).ProtoReflect().Type()
 	timestampType = (&timestamppb.Timestamp{}).ProtoReflect().Type()
 )
 
@@ -84,6 +88,14 @@ func (d *Decoder) decodeDuration(out protoreflect.Message, v *yaml.Node) error {
 	}
 
 	return protojson.Unmarshal([]byte(strconv.Quote(v.Value)), dur)
+}
+
+func (d *Decoder) decodeFieldMask(out protoreflect.Message, v *yaml.Node) error {
+	if v.Kind != yaml.SequenceNode {
+		return fmt.Errorf("protoyaml: attempting to unmarshal a %v into a fieldmaskpb.FieldMask", v.Kind)
+	}
+
+	return d.decodeField(out, out.Descriptor().Fields().ByName("paths"), v)
 }
 
 func (d *Decoder) decodeTimestamp(out protoreflect.Message, v *yaml.Node) error {
