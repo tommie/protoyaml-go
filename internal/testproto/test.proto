@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package protoyaml.test;
 
+import "google/protobuf/duration.proto";
+
 option go_package = "github.com/tommie/protoyaml-go/internal/testproto";
 
 message Message {
@@ -49,4 +51,8 @@ message Message {
 enum Enum {
   ZERO = 0;
   ONE = 1;
+}
+
+message Known {
+  google.protobuf.Duration aduration = 1;
 }

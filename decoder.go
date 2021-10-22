@@ -55,9 +55,18 @@ func (d *Decoder) Decode(v interface{}) error {
 	}
 }
 
-// decodeMessage decodes the given node as a Protobuf message. The
-// node must be a MappingNode.
+// decodeMessage decodes the given node as a Protobuf message.
 func (d *Decoder) decodeMessage(out protoreflect.Message, v *yaml.Node) error {
+	if ok, err := d.decodeKnownType(out, v); err != nil {
+		return err
+	} else if ok {
+		return nil
+	}
+
+	if v.Kind != yaml.MappingNode {
+		return fmt.Errorf("protoyaml: attempting to decode a %v into a message: %s", v.Kind, out.Descriptor().FullName())
+	}
+
 	var key string
 	for _, n := range v.Content {
 		if key == "" {
@@ -79,48 +88,9 @@ func (d *Decoder) decodeMessage(out protoreflect.Message, v *yaml.Node) error {
 // decodeField decodes some value guided by a field descriptor. This
 // is the main workhorse of the decoder.
 func (d *Decoder) decodeField(out protoreflect.Message, fd protoreflect.FieldDescriptor, v *yaml.Node) error {
-	switch v.Kind {
-	case yaml.ScalarNode:
-		if fd.Cardinality() == protoreflect.Repeated {
-			return fmt.Errorf("protoyaml: attempting to store scalar in a repeated field %q: %s", fd.FullName(), v.Value)
-		}
-
-		pv, err := d.decodeScalar(fd, v)
-		if err != nil {
-			return err
-		}
-
-		out.Set(fd, pv)
-
-	case yaml.SequenceNode:
-		if !fd.IsList() {
-			return fmt.Errorf("protoyaml: attempting to store a sequence in a non-repeated field %q", fd.FullName())
-		}
-
-		l := out.Mutable(fd).List()
-		for _, n := range v.Content {
-			if fd.Kind() == protoreflect.MessageKind {
-				pv := l.AppendMutable()
-				if err := d.decodeMessage(pv.Message(), n); err != nil {
-					return err
-				}
-				continue
-			}
-
-			pv, err := d.decodeScalar(fd, n)
-			if err != nil {
-				return err
-			}
-			l.Append(pv)
-		}
-
-	case yaml.MappingNode:
-		if !fd.IsMap() {
-			return d.decodeMessage(out.Mutable(fd).Message(), v)
-		}
-
-		if fd.Kind() != protoreflect.MessageKind {
-			return fmt.Errorf("protoyaml: attempting to store a mapping in a non-map field %q", fd.FullName())
+	if fd.IsMap() {
+		if v.Kind != yaml.MappingNode {
+			return fmt.Errorf("protoyaml: attempting to store a %v in a map field: %s", v.Kind, fd.FullName())
 		}
 
 		mp := out.Mutable(fd).Map()
@@ -133,7 +103,7 @@ func (d *Decoder) decodeField(out protoreflect.Message, fd protoreflect.FieldDes
 						return err
 					}
 				} else {
-					pv, err := d.decodeScalar(fd.MapValue(), n)
+					pv, err := d.decodeValue(fd.MapValue(), n)
 					if err != nil {
 						return err
 					}
@@ -141,7 +111,7 @@ func (d *Decoder) decodeField(out protoreflect.Message, fd protoreflect.FieldDes
 				}
 				key = protoreflect.MapKey{}
 			} else {
-				pv, err := d.decodeScalar(fd.MapKey(), n)
+				pv, err := d.decodeValue(fd.MapKey(), n)
 				if err != nil {
 					return err
 				}
@@ -154,6 +124,45 @@ func (d *Decoder) decodeField(out protoreflect.Message, fd protoreflect.FieldDes
 				key = pv.MapKey()
 			}
 		}
+		return nil
+	}
+
+	if fd.IsList() {
+		if v.Kind != yaml.SequenceNode {
+			return fmt.Errorf("protoyaml: attempting to store a %v in a repeated field: %s", v.Kind, fd.FullName())
+		}
+
+		l := out.Mutable(fd).List()
+		for _, n := range v.Content {
+			if fd.Kind() == protoreflect.MessageKind {
+				pv := l.AppendMutable()
+				if err := d.decodeMessage(pv.Message(), n); err != nil {
+					return err
+				}
+				continue
+			}
+
+			pv, err := d.decodeValue(fd, n)
+			if err != nil {
+				return err
+			}
+			l.Append(pv)
+		}
+		return nil
+	}
+
+	if fd.Kind() == protoreflect.MessageKind {
+		return d.decodeMessage(out.Mutable(fd).Message(), v)
+	}
+
+	switch v.Kind {
+	case yaml.ScalarNode:
+		pv, err := d.decodeValue(fd, v)
+		if err != nil {
+			return err
+		}
+
+		out.Set(fd, pv)
 
 	default:
 		return fmt.Errorf("protoyaml: cannot unmarshal a %v", v.Kind)
@@ -162,9 +171,9 @@ func (d *Decoder) decodeField(out protoreflect.Message, fd protoreflect.FieldDes
 	return nil
 }
 
-// decodeScalar decodes a non-compound value, interpreted based on the
+// decodeValue decodes a non-compound value, interpreted based on the
 // kind of field it is.
-func (d *Decoder) decodeScalar(fd protoreflect.FieldDescriptor, v *yaml.Node) (protoreflect.Value, error) {
+func (d *Decoder) decodeValue(fd protoreflect.FieldDescriptor, v *yaml.Node) (protoreflect.Value, error) {
 	switch fd.Kind() {
 	case protoreflect.BoolKind:
 		var vv bool

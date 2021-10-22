@@ -4,10 +4,12 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"gopkg.in/yaml.v3"
 
 	"github.com/tommie/protoyaml-go/internal/testproto"
@@ -88,20 +90,38 @@ anint32: 42`))
 }
 
 func TestDecoderDecodeMessage(t *testing.T) {
-	d, n, err := parseYAML(`anint32: 42
+	t.Run("simple", func(t *testing.T) {
+		d, n, err := parseYAML(`anint32: 42
 astring: hello`)
-	if err != nil {
-		t.Fatalf("parseYAML failed: %v", err)
-	}
-	var got testproto.Message
-	if err := d.decodeMessage(got.ProtoReflect(), n); err != nil {
-		t.Fatalf("decodeMessage failed: %v", err)
-	}
+		if err != nil {
+			t.Fatalf("parseYAML failed: %v", err)
+		}
+		var got testproto.Message
+		if err := d.decodeMessage(got.ProtoReflect(), n); err != nil {
+			t.Fatalf("decodeMessage failed: %v", err)
+		}
 
-	want := testproto.Message{Anint32: 42, Astring: "hello"}
-	if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
-		t.Errorf("decodeMessage: +got, -want:\n%s", diff)
-	}
+		want := testproto.Message{Anint32: 42, Astring: "hello"}
+		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+			t.Errorf("decodeMessage: +got, -want:\n%s", diff)
+		}
+	})
+
+	t.Run("known", func(t *testing.T) {
+		d, n, err := parseYAML(`aduration: "42s"`)
+		if err != nil {
+			t.Fatalf("parseYAML failed: %v", err)
+		}
+		var got testproto.Known
+		if err := d.decodeMessage(got.ProtoReflect(), n); err != nil {
+			t.Fatalf("decodeMessage failed: %v", err)
+		}
+
+		want := testproto.Known{Aduration: durationpb.New(42 * time.Second)}
+		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+			t.Errorf("decodeMessage: +got, -want:\n%s", diff)
+		}
+	})
 }
 
 func TestDecoderDecodeField(t *testing.T) {
@@ -140,7 +160,7 @@ func TestDecoderDecodeField(t *testing.T) {
 	}
 }
 
-func TestDecoderDecodeScalar(t *testing.T) {
+func TestDecoderDecodeValue(t *testing.T) {
 	fds := (&testproto.Message{}).ProtoReflect().Descriptor().Fields()
 	tsts := []struct {
 		Name string
@@ -180,13 +200,13 @@ func TestDecoderDecodeScalar(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parseYAML failed: %v", err)
 			}
-			got, err := d.decodeScalar(tst.FD, n)
+			got, err := d.decodeValue(tst.FD, n)
 			if err != nil {
-				t.Fatalf("decodeScalar failed: %v", err)
+				t.Fatalf("decodeValue failed: %v", err)
 			}
 
 			if diff := cmp.Diff(tst.Want, got.Interface(), protocmp.Transform()); diff != "" {
-				t.Errorf("decodeScalar: +got, -want:\n%s", diff)
+				t.Errorf("decodeValue: +got, -want:\n%s", diff)
 			}
 		})
 	}
