@@ -87,6 +87,30 @@ anint32: 42`))
 			t.Errorf("Decode: +got, -want:\n%s", diff)
 		}
 	})
+
+	t.Run("alias", func(t *testing.T) {
+		tsts := []struct {
+			Name string
+			YAML string
+			Want testproto.Message
+		}{
+			{"int32", `arepeated_message: [ {anint32: &anchor 42}, {anint32: *anchor} ]`, testproto.Message{Anint32: 42}},
+			{"message", `arepeated_message: [ &anchor {anint32: 42}, *anchor ]`, testproto.Message{Anint32: 42}},
+			{"repeated", `arepeated_message: [ {arepeated_bool: &anchor [true, false] }, {arepeated_bool: *anchor } ]`, testproto.Message{ArepeatedBool: []bool{true, false}}},
+		}
+		for _, tst := range tsts {
+			t.Run(tst.Name, func(t *testing.T) {
+				var got testproto.Message
+				if err := NewDecoder(strings.NewReader(tst.YAML)).Decode(got.ProtoReflect()); err != nil {
+					t.Fatalf("Decode failed: %v", err)
+				}
+
+				if diff := cmp.Diff(&tst.Want, got.ArepeatedMessage[1], protocmp.Transform()); diff != "" {
+					t.Errorf("Decode: +got, -want:\n%s", diff)
+				}
+			})
+		}
+	})
 }
 
 func TestDecoderDecodeMessage(t *testing.T) {

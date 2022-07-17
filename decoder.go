@@ -68,6 +68,10 @@ func (d *Decoder) Decode(v interface{}) error {
 
 // decodeMessage decodes the given node as a Protobuf message.
 func (d *Decoder) decodeMessage(out protoreflect.Message, v *yaml.Node) error {
+	if v.Kind == yaml.AliasNode {
+		v = v.Alias
+	}
+
 	if ok, err := d.decodeKnownType(out, v); err != nil {
 		return err
 	} else if ok {
@@ -99,6 +103,10 @@ func (d *Decoder) decodeMessage(out protoreflect.Message, v *yaml.Node) error {
 // decodeField decodes some value guided by a field descriptor. This
 // is the main workhorse of the decoder.
 func (d *Decoder) decodeField(out protoreflect.Message, fd protoreflect.FieldDescriptor, v *yaml.Node) error {
+	if v.Kind == yaml.AliasNode {
+		v = v.Alias
+	}
+
 	if fd.IsMap() {
 		if v.Kind != yaml.MappingNode {
 			return fmt.Errorf("protoyaml: attempting to store a %v in a map field: %s", v.Kind, fd.FullName())
