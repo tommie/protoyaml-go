@@ -88,12 +88,19 @@ func (d *Decoder) decodeMessage(out protoreflect.Message, v *yaml.Node) error {
 			key = n.Value
 			continue
 		}
-		fd := out.Descriptor().Fields().ByName(protoreflect.Name(key))
-		if fd == nil {
-			return fmt.Errorf("protoyaml: unknown field: %s.%s", out.Descriptor().FullName(), key)
-		}
-		if err := d.decodeField(out, fd, n); err != nil {
-			return err
+
+		if key == "<<" {
+			if err := d.decodeMessage(out, n); err != nil {
+				return err
+			}
+		} else {
+			fd := out.Descriptor().Fields().ByName(protoreflect.Name(key))
+			if fd == nil {
+				return fmt.Errorf("protoyaml: unknown field: %s.%s", out.Descriptor().FullName(), key)
+			}
+			if err := d.decodeField(out, fd, n); err != nil {
+				return err
+			}
 		}
 		key = ""
 	}
@@ -116,7 +123,11 @@ func (d *Decoder) decodeField(out protoreflect.Message, fd protoreflect.FieldDes
 		var key protoreflect.MapKey
 		for _, n := range v.Content {
 			if key.IsValid() {
-				if fd.MapValue().Kind() == protoreflect.MessageKind {
+				if fd.MapKey().Kind() == protoreflect.StringKind && key.String() == "<<" {
+					if err := d.decodeField(out, fd, n); err != nil {
+						return err
+					}
+				} else if fd.MapValue().Kind() == protoreflect.MessageKind {
 					pv := mp.Mutable(key)
 					if err := d.decodeMessage(pv.Message(), n); err != nil {
 						return err

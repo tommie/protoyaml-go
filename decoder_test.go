@@ -48,7 +48,7 @@ func TestUnmarshal(t *testing.T) {
 	}
 
 	want := testproto.Message{Astring: "hello"}
-	if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+	if diff := cmp.Diff(&want, &got, protocmp.Transform()); diff != "" {
 		t.Errorf("Unmarshal: +got, -want:\n%s", diff)
 	}
 }
@@ -61,7 +61,7 @@ func TestDecoderDecode(t *testing.T) {
 		}
 
 		want := testproto.Message{Astring: "hello"}
-		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+		if diff := cmp.Diff(&want, &got, protocmp.Transform()); diff != "" {
 			t.Errorf("Decode: +got, -want:\n%s", diff)
 		}
 	})
@@ -126,7 +126,42 @@ astring: hello`)
 		}
 
 		want := testproto.Message{Anint32: 42, Astring: "hello"}
-		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+		if diff := cmp.Diff(&want, &got, protocmp.Transform()); diff != "" {
+			t.Errorf("decodeMessage: +got, -want:\n%s", diff)
+		}
+	})
+
+	t.Run("mergeOverwrite", func(t *testing.T) {
+		d, n, err := parseYAML(`amessage: { << : { anint32: 42 }, anint32: 43 }`)
+		if err != nil {
+			t.Fatalf("parseYAML failed: %v", err)
+		}
+		var got testproto.Message
+		if err := d.decodeMessage(got.ProtoReflect(), n); err != nil {
+			t.Fatalf("decodeMessage failed: %v", err)
+		}
+
+		want := testproto.Message{Amessage: &testproto.Message{Anint32: 43}}
+		if diff := cmp.Diff(&want, &got, protocmp.Transform()); diff != "" {
+			t.Errorf("decodeMessage: +got, -want:\n%s", diff)
+		}
+	})
+
+	t.Run("mergeAlias", func(t *testing.T) {
+		d, n, err := parseYAML(`arepeated_message: [ {amessage: &anchor { anint32: 42 } }, {amessage: { << : *anchor, astring: "hello" } } ]`)
+		if err != nil {
+			t.Fatalf("parseYAML failed: %v", err)
+		}
+		var got testproto.Message
+		if err := d.decodeMessage(got.ProtoReflect(), n); err != nil {
+			t.Fatalf("decodeMessage failed: %v", err)
+		}
+
+		want := testproto.Message{ArepeatedMessage: []*testproto.Message{
+			{Amessage: &testproto.Message{Anint32: 42}},
+			{Amessage: &testproto.Message{Anint32: 42, Astring: "hello"}},
+		}}
+		if diff := cmp.Diff(&want, &got, protocmp.Transform()); diff != "" {
 			t.Errorf("decodeMessage: +got, -want:\n%s", diff)
 		}
 	})
@@ -142,7 +177,7 @@ astring: hello`)
 		}
 
 		want := testproto.Known{Aduration: durationpb.New(42 * time.Second)}
-		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+		if diff := cmp.Diff(&want, &got, protocmp.Transform()); diff != "" {
 			t.Errorf("decodeMessage: +got, -want:\n%s", diff)
 		}
 	})
@@ -164,7 +199,8 @@ func TestDecoderDecodeField(t *testing.T) {
 
 		{"messageMapping", `{anint32: 42}`, fds.ByName("amessage"), testproto.Message{Amessage: &testproto.Message{Anint32: 42}}},
 		{"scalarMapMapping", `{anykey: 42}`, fds.ByName("astring_int32_map"), testproto.Message{AstringInt32Map: map[string]int32{"anykey": 42}}},
-		{"messageMapMapping", `{anykey: {anint32: 42}}`, fds.ByName("astring_message_map"), testproto.Message{AstringMessageMap: map[string]*testproto.Message{"anykey": &testproto.Message{Anint32: 42}}}},
+		{"scalarMapMappingMerge", `{<< : {anykey: 42}, another: 43}`, fds.ByName("astring_int32_map"), testproto.Message{AstringInt32Map: map[string]int32{"anykey": 42, "another": 43}}},
+		{"messageMapMapping", `{anykey: {anint32: 42}}`, fds.ByName("astring_message_map"), testproto.Message{AstringMessageMap: map[string]*testproto.Message{"anykey": {Anint32: 42}}}},
 	}
 	for _, tst := range tsts {
 		t.Run(tst.Name, func(t *testing.T) {
@@ -177,7 +213,7 @@ func TestDecoderDecodeField(t *testing.T) {
 				t.Fatalf("decodeField failed: %v", err)
 			}
 
-			if diff := cmp.Diff(tst.Want, got, protocmp.Transform()); diff != "" {
+			if diff := cmp.Diff(&tst.Want, &got, protocmp.Transform()); diff != "" {
 				t.Errorf("decodeField: +got, -want:\n%s", diff)
 			}
 		})
