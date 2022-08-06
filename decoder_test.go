@@ -121,11 +121,27 @@ astring: hello`)
 			t.Fatalf("parseYAML failed: %v", err)
 		}
 		var got testproto.Message
-		if err := d.decodeMessage(got.ProtoReflect(), n); err != nil {
+		if err := d.decodeMessage(got.ProtoReflect(), n, false); err != nil {
 			t.Fatalf("decodeMessage failed: %v", err)
 		}
 
 		want := testproto.Message{Anint32: 42, Astring: "hello"}
+		if diff := cmp.Diff(&want, &got, protocmp.Transform()); diff != "" {
+			t.Errorf("decodeMessage: +got, -want:\n%s", diff)
+		}
+	})
+
+	t.Run("mergeSequence", func(t *testing.T) {
+		d, n, err := parseYAML(`amessage: { << : [ { anint32: 42 }, { anint32: 43 } ] }`)
+		if err != nil {
+			t.Fatalf("parseYAML failed: %v", err)
+		}
+		var got testproto.Message
+		if err := d.decodeMessage(got.ProtoReflect(), n, false); err != nil {
+			t.Fatalf("decodeMessage failed: %v", err)
+		}
+
+		want := testproto.Message{Amessage: &testproto.Message{Anint32: 42}}
 		if diff := cmp.Diff(&want, &got, protocmp.Transform()); diff != "" {
 			t.Errorf("decodeMessage: +got, -want:\n%s", diff)
 		}
@@ -137,7 +153,7 @@ astring: hello`)
 			t.Fatalf("parseYAML failed: %v", err)
 		}
 		var got testproto.Message
-		if err := d.decodeMessage(got.ProtoReflect(), n); err != nil {
+		if err := d.decodeMessage(got.ProtoReflect(), n, false); err != nil {
 			t.Fatalf("decodeMessage failed: %v", err)
 		}
 
@@ -148,18 +164,18 @@ astring: hello`)
 	})
 
 	t.Run("mergeAlias", func(t *testing.T) {
-		d, n, err := parseYAML(`arepeated_message: [ {amessage: &anchor { anint32: 42 } }, {amessage: { << : *anchor, astring: "hello" } } ]`)
+		d, n, err := parseYAML(`arepeated_message: [ {amessage: &anchor { anint32: 42, arepeated_int32: [4711] } }, {amessage: { << : *anchor, astring: "hello", arepeated_int32: [4712] } } ]`)
 		if err != nil {
 			t.Fatalf("parseYAML failed: %v", err)
 		}
 		var got testproto.Message
-		if err := d.decodeMessage(got.ProtoReflect(), n); err != nil {
+		if err := d.decodeMessage(got.ProtoReflect(), n, false); err != nil {
 			t.Fatalf("decodeMessage failed: %v", err)
 		}
 
 		want := testproto.Message{ArepeatedMessage: []*testproto.Message{
-			{Amessage: &testproto.Message{Anint32: 42}},
-			{Amessage: &testproto.Message{Anint32: 42, Astring: "hello"}},
+			{Amessage: &testproto.Message{Anint32: 42, ArepeatedInt32: []int32{4711}}},
+			{Amessage: &testproto.Message{Anint32: 42, ArepeatedInt32: []int32{4712}, Astring: "hello"}},
 		}}
 		if diff := cmp.Diff(&want, &got, protocmp.Transform()); diff != "" {
 			t.Errorf("decodeMessage: +got, -want:\n%s", diff)
@@ -172,7 +188,7 @@ astring: hello`)
 			t.Fatalf("parseYAML failed: %v", err)
 		}
 		var got testproto.Known
-		if err := d.decodeMessage(got.ProtoReflect(), n); err != nil {
+		if err := d.decodeMessage(got.ProtoReflect(), n, false); err != nil {
 			t.Fatalf("decodeMessage failed: %v", err)
 		}
 

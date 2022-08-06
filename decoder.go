@@ -58,16 +58,16 @@ func (d *Decoder) Decode(v interface{}) error {
 	}
 	switch m := v.(type) {
 	case protoreflect.Message:
-		return d.decodeMessage(m, n)
+		return d.decodeMessage(m, n, false)
 	case protoreflect.ProtoMessage:
-		return d.decodeMessage(m.ProtoReflect(), n)
+		return d.decodeMessage(m.ProtoReflect(), n, false)
 	default:
 		return fmt.Errorf("protoyaml: cannot unmarshal into a %T", v)
 	}
 }
 
 // decodeMessage decodes the given node as a Protobuf message.
-func (d *Decoder) decodeMessage(out protoreflect.Message, v *yaml.Node) error {
+func (d *Decoder) decodeMessage(out protoreflect.Message, v *yaml.Node, preserve bool) error {
 	if v.Kind == yaml.AliasNode {
 		v = v.Alias
 	}
@@ -90,13 +90,30 @@ func (d *Decoder) decodeMessage(out protoreflect.Message, v *yaml.Node) error {
 		}
 
 		if key == "<<" {
-			if err := d.decodeMessage(out, n); err != nil {
-				return err
+			// See https://yaml.org/type/merge.html.
+			if n.Kind == yaml.SequenceNode {
+				for _, n := range n.Content {
+					if err := d.decodeMessage(out, n, true); err != nil {
+						return err
+					}
+				}
+			} else {
+				if err := d.decodeMessage(out, n, true); err != nil {
+					return err
+				}
 			}
 		} else {
 			fd := out.Descriptor().Fields().ByName(protoreflect.Name(key))
 			if fd == nil {
 				return fmt.Errorf("protoyaml: unknown field: %s.%s", out.Descriptor().FullName(), key)
+			}
+			if out.Has(fd) {
+				if preserve {
+					key = ""
+					continue
+				}
+
+				out.Clear(fd)
 			}
 			if err := d.decodeField(out, fd, n); err != nil {
 				return err
@@ -129,7 +146,7 @@ func (d *Decoder) decodeField(out protoreflect.Message, fd protoreflect.FieldDes
 					}
 				} else if fd.MapValue().Kind() == protoreflect.MessageKind {
 					pv := mp.Mutable(key)
-					if err := d.decodeMessage(pv.Message(), n); err != nil {
+					if err := d.decodeMessage(pv.Message(), n, false); err != nil {
 						return err
 					}
 				} else {
@@ -166,7 +183,7 @@ func (d *Decoder) decodeField(out protoreflect.Message, fd protoreflect.FieldDes
 		for _, n := range v.Content {
 			if fd.Kind() == protoreflect.MessageKind {
 				pv := l.AppendMutable()
-				if err := d.decodeMessage(pv.Message(), n); err != nil {
+				if err := d.decodeMessage(pv.Message(), n, false); err != nil {
 					return err
 				}
 				continue
@@ -182,7 +199,7 @@ func (d *Decoder) decodeField(out protoreflect.Message, fd protoreflect.FieldDes
 	}
 
 	if fd.Kind() == protoreflect.MessageKind {
-		return d.decodeMessage(out.Mutable(fd).Message(), v)
+		return d.decodeMessage(out.Mutable(fd).Message(), v, false)
 	}
 
 	switch v.Kind {

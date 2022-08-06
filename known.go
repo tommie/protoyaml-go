@@ -73,7 +73,7 @@ func (d *Decoder) decodeAny(out protoreflect.Message, v *yaml.Node) error {
 	n.Content = append(append([]*yaml.Node{}, v.Content[:typeIndex]...), v.Content[typeIndex+2:]...)
 
 	m := mt.New()
-	if err := d.decodeMessage(m, &n); err != nil {
+	if err := d.decodeMessage(m, &n, false); err != nil {
 		return err
 	}
 
